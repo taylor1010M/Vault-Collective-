@@ -71,7 +71,7 @@ $("#search").oninput=render;$("#sort").onchange=render;
 function openBag(){$("#drawer").classList.add("open");$("#scrim").classList.add("open")}function closeBag(){$("#drawer").classList.remove("open");$("#scrim").classList.remove("open")}
 $("#cartOpen").onclick=openBag;$("#cartClose").onclick=closeBag;$("#scrim").onclick=closeBag;
 $("#checkout").onclick=()=>showNotice("Checkout isn't connected yet","To take real payments, this store needs a secure server-side checkout integration with a payment provider such as Stripe. The owner must create and verify their own payment account. Never paste secret keys into this HTML file.");
-$("#infoLink").onclick=e=>{e.preventDefault();$("#infoModal").classList.add("open")};
+$("#infoLink").onclick=e=>{e.preventDefault();;
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>$("#"+b.dataset.close).classList.remove("open"));
 $("#adminOpen").onclick=()=>{$("#admin").classList.add("open");renderAdmin()};$("#adminBack").onclick=()=>$("#admin").classList.remove("open");
 $("#addProduct").onclick=()=>openProduct();$("#adminRows").onclick=e=>{let ed=e.target.closest("[data-edit]"),del=e.target.closest("[data-delete]");if(ed)openProduct(items.find(p=>p.id==ed.dataset.edit));if(del){items=items.filter(p=>p.id!=del.dataset.delete);persist()}};
