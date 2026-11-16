@@ -77,6 +77,6 @@ $("#adminOpen").onclick=()=>{$("#admin").classList.add("open");renderAdmin()};$(
 $("#addProduct").onclick=()=>openProduct();$("#adminRows").onclick=e=>{let ed=e.target.closest("[data-edit]"),del=e.target.closest("[data-delete]");if(ed)openProduct(items.find(p=>p.id==ed.dataset.edit));if(del){items=items.filter(p=>p.id!=del.dataset.delete);persist()}};
 $("#productForm").onsubmit=e=>{e.preventDefault();let id=$("#pid").value?Number($("#pid").value):Math.max(0,...items.map(p=>p.id))+1;let p={id,name:$("#pname").value.trim(),category:$("#pcat").value,price:Number($("#pprice").value),desc:$("#pdesc").value.trim(),image:$("#pimage").value.trim(),stock:Number($("#pstock").value),tag:"Vault edit"};let ix=items.findIndex(x=>x.id===id);if(ix>=0)items[ix]=p;else items.push(p);persist();$("#productModal").classList.remove("open")};
 $("#resetProducts").onclick=()=>{if(confirm("Replace your browser's product list with the sample products?")){items=defaults;persist()}};
-$("#year").textContent=new Date().getFullYear();render();renderBag();renderAdmin();
+render();renderBag();renderAdmin();
 </script>
 </body></html>
