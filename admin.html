@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Vault Collective — Admin</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+:root{
+  --bg:#f5f4ef;
+  --ink:#171813;
+  --muted:#77786f;
+  --line:#deded5;
+  --accent:#c7ef65;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:Arial,Helvetica,sans-serif;
+}
+header{
+  padding:24px 5%;
+  border-bottom:1px solid var(--line);
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:15px;
+}
+.logo{
+  font-size:21px;
+  font-weight:900;
+  letter-spacing:-1px;
+}
+.logo span{color:var(--muted)}
+button,input{font:inherit}
+button{
+  cursor:pointer;
+  background:var(--ink);
+  color:white;
+  border:0;
+  padding:14px 20px;
+  font-size:11px;
+  letter-spacing:1px;
+  text-transform:uppercase;
+}
+button:disabled{opacity:.5}
+input{
+  width:100%;
+  padding:15px;
+  background:white;
+  border:1px solid var(--line);
+  margin-bottom:12px;
+}
+.login{
+  max-width:420px;
+  margin:70px auto;
+  padding:30px;
+  background:white;
+  border:1px solid var(--line);
+}
+.login button{width:100%}
+h1{letter-spacing:-2px}
+h2{letter-spacing:-1px}
+p{line-height:1.6}
+.muted{color:var(--muted);font-size:13px}
+.dashboard{
+  max-width:1300px;
+  margin:auto;
+  padding:35px 5%;
+}
+.stats{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:12px;
+  margin:25px 0;
+}
+.stat{
+  padding:22px;
+  background:white;
+  border:1px solid var(--line);
+}
+.stat span{
+  display:block;
+  color:var(--muted);
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:1px;
+}
+.stat strong{
+  display:block;
+  font-size:28px;
+  margin-top:12px;
+}
+.toolbar{
+  display:flex;
+  gap:10px;
+  margin:25px 0;
+}
+.toolbar input{margin:0}
+.order{
+  background:white;
+  border:1px solid var(--line);
+  padding:20px;
+  margin-bottom:12px;
+}
+.order-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+}
+.status{
+  background:var(--accent);
+  padding:7px 10px;
+  font-size:10px;
+  text-transform:uppercase;
+}
+details{
+  margin-top:15px;
+  border-top:1px solid var(--line);
+  padding-top:15px;
+}
+summary{cursor:pointer;font-size:13px}
+.item{
+  padding:10px 0;
+  border-bottom:1px solid var(--line);
+  font-size:13px;
+}
+.message{
+  font-size:13px;
+  color:var(--muted);
+  overflow-wrap:anywhere;
+}
+[hidden]{display:none!important}
+@media(max-width:600px){
+  .login{margin:35px 5%;padding:22px}
+  .stats{grid-template-columns:1fr 1fr}
+  .stat{padding:15px}
+  .stat strong{font-size:22px}
+  .logo{font-size:17px}
+  .toolbar{flex-direction:column}
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="logo">VAULT<span>COLLECTIVE.</span></div>
+  <button id="logout" hidden>Sign out</button>
+</header>
+
+<section class="login" id="loginPanel">
+  <p class="muted">PRIVATE ADMIN ACCESS</p>
+  <h1>Welcome back.</h1>
+  <p class="muted">
+    Sign in to manage Vault Collective.
+  </p>
+
+  <form id="loginForm">
+    <input
+      id="email"
+      type="email"
+      placeholder="Email address"
+      autocomplete="username"
+      required
+    >
+    <input
+      id="password"
+      type="password"
+      placeholder="Password"
+      autocomplete="current-password"
+      required
+    >
+    <button id="loginButton" type="submit">
+      Sign in
+    </button>
+  </form>
+
+  <p class="message" id="loginMessage" role="status"></p>
+</section>
+
+<main class="dashboard" id="dashboard" hidden>
+
+  <p class="muted">VAULT COLLECTIVE / ADMIN</p>
+  <h1>Store overview.</h1>
+  <p class="muted">
+    Manage and review your store orders.
+  </p>
+
+  <div class="stats">
+    <div class="stat">
+      <span>Total orders</span>
+      <strong id="orderCount">0</strong>
+    </div>
+
+    <div class="stat">
+      <span>Recorded paid sales</span>
+      <strong id="revenue">£0.00</strong>
+    </div>
+
+    <div class="stat">
+      <span>Paid orders</span>
+      <strong id="paidCount">0</strong>
+    </div>
+  </div>
+
+  <p class="muted">
+    Statistics include sandbox test orders.
+  </p>
+
+  <h2>Customer orders.</h2>
+
+  <div class="toolbar">
+    <input
+      id="search"
+      type="search"
+      placeholder="Search orders..."
+    >
+    <button id="refresh">Refresh</button>
+  </div>
+
+  <p class="message" id="dashboardMessage" role="status"></p>
+
+  <div id="orders"></div>
+
+</main>
+
+<script>
+"use strict";
+
+const SUPABASE_URL =
+  "https://btjlvqywiphjynbfeurl.supabase.co";
+
+const SUPABASE_PUBLISHABLE_KEY =
+  "sb_publishable_ywJizFeRjLteUpiwRVdMkw_zza6OQQn";
+
+const ADMIN_UID =
+  "75a7f9c1-c2d4-403b-981d-3c707e09de38";
+
+const db = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY
+);
+
+const $ = id => document.getElementById(id);
+
+let orders = [];
+let loadVersion = 0;
+
+function escapeHtml(value){
+  return String(value ?? "").replace(
+    /[&<>"']/g,
+    char => ({
+      "&":"&amp;",
+      "<":"&lt;",
+      ">":"&gt;",
+      '"':"&quot;",
+      "'":"&#039;"
+    })[char]
+  );
+}
+
+function money(pence){
+  return new Intl.NumberFormat("en-GB",{
+    style:"currency",
+    currency:"GBP"
+  }).format((Number(pence)||0)/100);
+}
+
+function formatDate(value){
+  if(!value) return "Unknown date";
+
+  return new Date(value).toLocaleString("en-GB");
+}
+
+function formatAddress(address){
+  if(!address) return "No address recorded";
+
+  if(typeof address === "string"){
+    try{
+      address = JSON.parse(address);
+    }catch{
+      return address;
+    }
+  }
+
+  return [
+    address.line1,
+    address.line2,
+    address.city,
+    address.state,
+    address.postal_code,
+    address.country
+  ].filter(Boolean).join(", ") || "No address recorded";
+}
+
+function showLogin(){
+  loadVersion++;
+  orders = [];
+
+  $("orders").innerHTML = "";
+  $("search").value = "";
+  $("orderCount").textContent = "0";
+  $("paidCount").textContent = "0";
+  $("revenue").textContent = "£0.00";
+  $("dashboardMessage").textContent = "";
+
+  $("loginPanel").hidden = false;
+  $("dashboard").hidden = true;
+  $("logout").hidden = true;
+}
+
+async function showDashboard(session){
+  if(!session || session.user.id !== ADMIN_UID){
+    showLogin();
+
+    if(session){
+      await db.auth.signOut();
+      $("loginMessage").textContent =
+        "This account is not authorised.";
+    }
+
+    return;
+  }
+
+  $("loginPanel").hidden = true;
+  $("dashboard").hidden = false;
+  $("logout").hidden = false;
+
+  await loadOrders();
+}
+
+async function loadOrders(){
+  const version = ++loadVersion;
+
+  $("dashboardMessage").textContent =
+    "Loading orders...";
+
+  $("refresh").disabled = true;
+
+  try{
+    const {data:authData,error:authError} =
+      await db.auth.getUser();
+
+    if(
+      authError ||
+      !authData.user ||
+      authData.user.id !== ADMIN_UID
+    ){
+      showLogin();
+      return;
+    }
+
+    let allOrders = [];
+    const pageSize = 100;
+
+    for(let offset = 0;;offset += pageSize){
+      const {data,error} = await db
+        .from("orders")
+        .select("*, order_items(*)")
+        .order("created_at",{ascending:false})
+        .order("id",{ascending:false})
+        .range(offset,offset + pageSize - 1);
+
+      if(error) throw error;
+
+      if(version !== loadVersion) return;
+
+      allOrders.push(...(data || []));
+
+      if(!data || data.length < pageSize) break;
+    }
+
+    if(version !== loadVersion) return;
+
+    orders = allOrders;
+
+    updateStats();
+    renderOrders();
+
+    $("dashboardMessage").textContent =
+      orders.length + " orders loaded.";
+
+  }catch(error){
+    if(version !== loadVersion) return;
+
+    $("dashboardMessage").textContent =
+      "Could not load orders: " + error.message;
+  }finally{
+    $("refresh").disabled = false;
+  }
+}
+
+function updateStats(){
+  const paid = orders.filter(
+    order => order.status === "paid"
+  );
+
+  const revenue = paid.reduce(
+    (total,order) =>
+      total + (Number(order.total_pence)||0),
+    0
+  );
+
+  $("orderCount").textContent = orders.length;
+  $("paidCount").textContent = paid.length;
+  $("revenue").textContent = money(revenue);
+}
+
+function renderOrders(){
+  const query = $("search").value
+    .trim().toLowerCase();
+
+  const filtered = orders.filter(order => {
+    return [
+      order.id,
+      order.customer_name,
+      order.customer_email,
+      order.stripe_checkout_session_id,
+      order.status
+    ].join(" ").toLowerCase().includes(query);
+  });
+
+  if(!filtered.length){
+    $("orders").innerHTML =
+      '<p class="muted">No orders found.</p>';
+    return;
+  }
+
+  $("orders").innerHTML = filtered.map(order => {
+
+    const reference =
+      "VC-" + String(
+        order.stripe_checkout_session_id || order.id
+      ).slice(-10);
+
+    const items = order.order_items || [];
+
+    const testOrder = String(
+      order.stripe_checkout_session_id || ""
+    ).startsWith("cs_test_");
+
+    return `
+      <article class="order">
+
+        <div class="order-header">
+          <strong>${escapeHtml(reference)}</strong>
+          <span class="status">
+            ${escapeHtml(order.status)}
+          </span>
+        </div>
+
+        <p class="muted">
+          ${escapeHtml(formatDate(order.created_at))}
+          ${testOrder ? " · TEST ORDER" : ""}
+        </p>
+
+        <p>
+          <strong>${money(order.total_pence)}</strong>
+        </p>
+
+        <p>
+          ${escapeHtml(order.customer_name || "Customer")}
+        </p>
+
+        <details>
+          <summary>View order details</summary>
+
+          <h3>Customer information</h3>
+
+          <p>
+            ${escapeHtml(order.customer_name || "Not provided")}
+          </p>
+
+          <p>
+            ${escapeHtml(order.customer_email || "Not provided")}
+          </p>
+
+          <h3>Delivery address</h3>
+
+          <p>
+            ${escapeHtml(formatAddress(order.shipping_address))}
+          </p>
+
+          <h3>Products</h3>
+
+          ${items.length ? items.map(item => `
+            <div class="item">
+              <strong>
+                ${escapeHtml(item.product_name)}
+              </strong>
+              <p>
+                Quantity: ${escapeHtml(item.quantity)}
+                · ${money(item.unit_amount_pence)} each
+              </p>
+            </div>
+          `).join("") :
+            '<p class="muted">No items recorded.</p>'
+          }
+
+          <p>
+            Subtotal: ${money(order.subtotal_pence)}
+          </p>
+
+          <p>
+            Shipping: ${money(order.shipping_pence)}
+          </p>
+
+          <p>
+            <strong>
+              Total: ${money(order.total_pence)}
+            </strong>
+          </p>
+
+        </details>
+
+      </article>
+    `;
+  }).join("");
+}
+
+$("loginForm").addEventListener(
+  "submit",
+  async event => {
+    event.preventDefault();
+
+    $("loginButton").disabled = true;
+    $("loginMessage").textContent = "Signing in...";
+
+    try{
+      const {data,error} =
+        await db.auth.signInWithPassword({
+          email:$("email").value.trim(),
+          password:$("password").value
+        });
+
+      $("password").value = "";
+
+      if(error) throw error;
+
+      $("loginMessage").textContent = "";
+
+      await showDashboard(data.session);
+
+    }catch(error){
+      $("loginMessage").textContent =
+        "Sign in failed: " + error.message;
+    }finally{
+      $("loginButton").disabled = false;
+    }
+  }
+);
+
+$("logout").addEventListener("click",async()=>{
+  const {error} = await db.auth.signOut();
+
+  showLogin();
+
+  $("loginMessage").textContent = error
+    ? "Sign out failed. Please try again."
+    : "You have been signed out.";
+});
+
+$("search").addEventListener("input",renderOrders);
+
+$("refresh").addEventListener("click",loadOrders);
+
+db.auth.onAuthStateChange((event,session)=>{
+  if(event === "SIGNED_OUT" || !session){
+    showLogin();
+  }
+});
+
+async function initialise(){
+  try{
+    const {data,error} = await db.auth.getSession();
+
+    if(error) throw error;
+
+    await showDashboard(data.session);
+  }catch{
+    showLogin();
+  }
+}
+
+initialise();
+</script>
+
+</body>
+</html>
