@@ -171,6 +171,8 @@ footer {
 </footer>
 
 <script>
+"use strict";
+
 document.getElementById("year").textContent =
   new Date().getFullYear();
 
@@ -213,6 +215,7 @@ async function verifyOrder() {
     }
 
     heading.textContent = "Thank you for your order";
+
     message.textContent =
       "Your payment has been confirmed. Thank you for shopping with Vault Collective.";
 
@@ -229,10 +232,26 @@ async function verifyOrder() {
 
     document.getElementById("details").hidden = false;
 
+    // Clear the shopping basket only after
+    // Stripe has verified a successful payment.
+
+    try {
+      const clearedKey = "vault-cleared-" + sessionId;
+
+      if (!localStorage.getItem(clearedKey)) {
+        localStorage.removeItem("vault-cart");
+        localStorage.setItem(clearedKey, "true");
+      }
+    } catch (error) {
+      console.warn("Unable to clear shopping bag.");
+    }
+
   } catch (error) {
     heading.textContent = "Awaiting confirmation";
+
     message.textContent =
       "We could not verify your payment right now. Please refresh this page shortly. Do not pay again.";
+
     symbol.textContent = "...";
   }
 }
