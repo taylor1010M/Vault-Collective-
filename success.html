@@ -1,0 +1,244 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Order Confirmation — Vault Collective</title>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f5f4ef;
+  color: #171813;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+header {
+  padding: 28px 20px;
+  text-align: center;
+  border-bottom: 1px solid #deded5;
+}
+
+.brand {
+  font-size: 23px;
+  font-weight: 900;
+  letter-spacing: -1px;
+  color: #171813;
+  text-decoration: none;
+}
+
+.brand span {
+  color: #77786f;
+}
+
+main {
+  min-height: 75vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.confirmation {
+  width: 100%;
+  max-width: 520px;
+  text-align: center;
+  background: #fff;
+  padding: 42px 25px;
+  border: 1px solid #deded5;
+}
+
+.symbol {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: #171813;
+  color: white;
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+  margin: 0 auto 25px;
+}
+
+h1 {
+  font-size: 32px;
+  letter-spacing: -1px;
+  margin: 0 0 16px;
+}
+
+p {
+  color: #77786f;
+  line-height: 1.7;
+  font-size: 14px;
+}
+
+.details {
+  background: #f5f4ef;
+  padding: 20px;
+  margin: 28px 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  margin: 12px 0;
+  font-size: 13px;
+}
+
+.button {
+  display: block;
+  padding: 18px;
+  background: #171813;
+  color: white;
+  text-decoration: none;
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-top: 25px;
+}
+
+footer {
+  text-align: center;
+  padding: 24px;
+  color: #77786f;
+  font-size: 11px;
+}
+
+[hidden] {
+  display: none !important;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <a class="brand" href="/">
+    VAULT<span>COLLECTIVE.</span>
+  </a>
+</header>
+
+<main>
+  <section class="confirmation" aria-live="polite">
+
+    <div class="symbol" id="symbol">...</div>
+
+    <h1 id="heading">Checking your order</h1>
+
+    <p id="message">
+      Please wait while we verify your payment.
+    </p>
+
+    <div class="details" id="details" hidden>
+
+      <div class="detail-row">
+        <span>Order reference</span>
+        <strong id="reference"></strong>
+      </div>
+
+      <div class="detail-row">
+        <span>Payment status</span>
+        <strong>Paid</strong>
+      </div>
+
+      <div class="detail-row">
+        <span>Total paid</span>
+        <strong id="total"></strong>
+      </div>
+
+    </div>
+
+    <a class="button" href="/">
+      Continue shopping
+    </a>
+
+  </section>
+</main>
+
+<footer>
+  &copy; <span id="year"></span>
+  Vault Collective. All rights reserved.
+</footer>
+
+<script>
+document.getElementById("year").textContent =
+  new Date().getFullYear();
+
+async function verifyOrder() {
+  const heading = document.getElementById("heading");
+  const message = document.getElementById("message");
+  const symbol = document.getElementById("symbol");
+
+  const sessionId = new URLSearchParams(
+    window.location.search
+  ).get("session_id");
+
+  if (!sessionId) {
+    heading.textContent = "Order not found";
+    message.textContent =
+      "No checkout reference was provided.";
+    symbol.textContent = "!";
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      "/api/verify-order?session_id=" +
+      encodeURIComponent(sessionId),
+      { cache: "no-store" }
+    );
+
+    if (!response.ok) {
+      throw new Error("Verification unavailable");
+    }
+
+    const order = await response.json();
+
+    if (order.paid !== true) {
+      heading.textContent = "Payment pending";
+      message.textContent =
+        "Your payment has not yet been confirmed.";
+      symbol.textContent = "...";
+      return;
+    }
+
+    heading.textContent = "Thank you for your order";
+    message.textContent =
+      "Your payment has been confirmed. Thank you for shopping with Vault Collective.";
+
+    symbol.textContent = "✓";
+
+    document.getElementById("reference").textContent =
+      order.reference;
+
+    document.getElementById("total").textContent =
+      new Intl.NumberFormat("en-GB", {
+        style: "currency",
+        currency: "GBP"
+      }).format(order.total / 100);
+
+    document.getElementById("details").hidden = false;
+
+  } catch (error) {
+    heading.textContent = "Awaiting confirmation";
+    message.textContent =
+      "We could not verify your payment right now. Please refresh this page shortly. Do not pay again.";
+    symbol.textContent = "...";
+  }
+}
+
+verifyOrder();
+</script>
+
+</body>
+</html>
