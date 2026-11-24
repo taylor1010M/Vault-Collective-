@@ -2,138 +2,123 @@
 const Stripe = require("stripe");
 const { createClient } = require("@supabase/supabase-js");
 
-function send(res, status, data) {
-  return res.status(status).json(data);
-}
-
 module.exports = async function handler(req, res) {
-
   res.setHeader("Cache-Control", "no-store");
 
   if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-
-    return send(res, 405, {
+    return res.status(405).json({
       error: "Method not allowed"
     });
   }
 
-  try {
+  let stripe;
+  let supabase;
+  let reservationId = null;
+  let session = null;
+  let creationAttempted = false;
 
+  try {
     const {
       STRIPE_SECRET_KEY,
-      STORE_URL,
       SUPABASE_URL,
-      SUPABASE_SECRET_KEY
+      SUPABASE_SECRET_KEY,
+      STORE_URL
     } = process.env;
 
     if (
       !STRIPE_SECRET_KEY ||
-      !STORE_URL ||
       !SUPABASE_URL ||
-      !SUPABASE_SECRET_KEY
+      !SUPABASE_SECRET_KEY ||
+      !STORE_URL
     ) {
-      return send(res, 503, {
-        error: "Checkout is not configured yet."
-      });
+      throw new Error("Incomplete server configuration");
     }
 
     if (!STRIPE_SECRET_KEY.startsWith("sk_test_")) {
-      return send(res, 503, {
-        error: "Live checkout is not enabled."
-      });
+      throw new Error("Only Stripe test mode is enabled");
     }
 
     const storeUrl = new URL(STORE_URL);
 
     if (storeUrl.protocol !== "https:") {
-      return send(res, 500, {
-        error: "Invalid store configuration."
-      });
+      throw new Error("Invalid store URL");
     }
 
-    let body;
+    stripe = new Stripe(STRIPE_SECRET_KEY);
 
-    try {
-      body = typeof req.body === "string"
-        ? JSON.parse(req.body)
-        : req.body;
-    } catch {
-      return send(res, 400, {
-        error: "Invalid basket."
-      });
-    }
-
-    if (
-      !body ||
-      !Array.isArray(body.items) ||
-      body.items.length === 0
-    ) {
-      return send(res, 400, {
-        error: "Your basket is empty."
-      });
-    }
-
-    if (body.items.length > 50) {
-      return send(res, 400, {
-        error: "Too many basket items."
-      });
-    }
-
-    const quantities = new Map();
-
-    for (const item of body.items) {
-
-      if (
-        !item ||
-        typeof item.sku !== "string" ||
-        item.sku.length > 80 ||
-        !item.sku.trim()
-      ) {
-        return send(res, 400, {
-          error: "Invalid product."
-        });
-      }
-
-      const sku = item.sku.trim();
-      const quantity = Number(item.quantity);
-
-      if (
-        !Number.isInteger(quantity) ||
-        quantity < 1 ||
-        quantity > 10
-      ) {
-        return send(res, 400, {
-          error: "Invalid product quantity."
-        });
-      }
-
-      const total =
-        (quantities.get(sku) || 0) + quantity;
-
-      if (total > 10) {
-        return send(res, 400, {
-          error: "Maximum 10 units per product."
-        });
-      }
-
-      quantities.set(sku, total);
-    }
-
-    const supabase = createClient(
+    supabase = createClient(
       SUPABASE_URL,
       SUPABASE_SECRET_KEY,
       {
         auth: {
-          persistSession: false,
-          autoRefreshToken: false
+          autoRefreshToken: false,
+          persistSession: false
         }
       }
     );
 
-    const skus = Array.from(quantities.keys());
+    const body =
+      typeof req.body === "string"
+        ? JSON.parse(req.body)
+        : req.body;
 
-    const { data: products, error } =
+    const items = body?.items;
+
+    if (
+      !Array.isArray(items) ||
+      items.length === 0 ||
+      items.length > 50
+    ) {
+      return res.status(400).json({
+        error: "Invalid basket"
+      });
+    }
+
+    const basket = new Map();
+
+    for (const item of items) {
+      const sku =
+        typeof item?.sku === "string"
+          ? item.sku.trim()
+          : "";
+
+      const quantity = item?.quantity;
+
+      if (
+        !sku ||
+        sku.length > 80 ||
+        !Number.isInteger(quantity) ||
+        quantity < 1 ||
+        quantity > 10
+      ) {
+        return res.status(400).json({
+          error: "Invalid basket item"
+        });
+      }
+
+      const total =
+        (basket.get(sku) || 0) + quantity;
+
+      if (total > 10) {
+        return res.status(400).json({
+          error: "Maximum 10 units per product"
+        });
+      }
+
+      basket.set(sku, total);
+    }
+
+    const requestedItems =
+      Array.from(basket, ([sku, quantity]) => ({
+        sku,
+        quantity
+      }));
+
+    const skus = requestedItems.map(
+      item => item.sku
+    );
+
+    const { data: products, error: productError } =
       await supabase
         .from("products")
         .select(
@@ -142,16 +127,7 @@ module.exports = async function handler(req, res) {
         .in("sku", skus)
         .eq("active", true);
 
-    if (error) {
-      console.error(
-        "Product database error:",
-        error.message
-      );
-
-      return send(res, 503, {
-        error: "Products are temporarily unavailable."
-      });
-    }
+    if (productError) throw productError;
 
     const productMap = new Map(
       products.map(product => [
@@ -162,64 +138,70 @@ module.exports = async function handler(req, res) {
 
     const lineItems = [];
 
-    for (const [sku, quantity] of quantities) {
-
-      const product = productMap.get(sku);
-
-      if (!product || product.active !== true) {
-        return send(res, 409, {
-          error: "A product is no longer available."
-        });
-      }
+    for (const item of requestedItems) {
+      const product = productMap.get(item.sku);
 
       if (
+        !product ||
         !Number.isInteger(product.price_pence) ||
-        product.price_pence < 1
+        product.price_pence <= 0 ||
+        product.stock_quantity < item.quantity
       ) {
-        return send(res, 409, {
-          error: "A product has an invalid price."
-        });
-      }
-
-      if (
-        !Number.isInteger(product.stock_quantity) ||
-        product.stock_quantity < quantity
-      ) {
-        return send(res, 409, {
-          error:
-            "Not enough stock available for " +
-            product.name + "."
+        return res.status(409).json({
+          error: "A product is unavailable or out of stock"
         });
       }
 
       lineItems.push({
-        quantity,
-
         price_data: {
           currency: "gbp",
-
           unit_amount: product.price_pence,
-
           product_data: {
             name: product.name,
-
             metadata: {
               sku: product.sku,
               product_id: product.id
             }
           }
-        }
+        },
+        quantity: item.quantity
       });
     }
 
-    const stripe = new Stripe(
-      STRIPE_SECRET_KEY
-    );
+    const { data: reservedId, error: reserveError } =
+      await supabase.rpc("reserve_stock", {
+        p_items: requestedItems
+      });
 
-    const session =
-      await stripe.checkout.sessions.create({
+    if (reserveError) {
+      if (
+        /insufficient available stock|product unavailable/i
+          .test(reserveError.message)
+      ) {
+        return res.status(409).json({
+          error: "Not enough available stock"
+        });
+      }
 
+      throw reserveError;
+    }
+
+    reservationId = reservedId;
+
+    if (!reservationId) {
+      throw new Error("Reservation could not be created");
+    }
+
+    const expiresAt =
+      Math.floor(Date.now() / 1000) + 31 * 60;
+
+    creationAttempted = true;
+
+    session = await stripe.checkout.sessions.create(
+      {
         mode: "payment",
+
+        payment_method_types: ["card"],
 
         line_items: lineItems,
 
@@ -228,6 +210,8 @@ module.exports = async function handler(req, res) {
         shipping_address_collection: {
           allowed_countries: ["GB"]
         },
+
+        expires_at: expiresAt,
 
         success_url:
           storeUrl.origin +
@@ -239,24 +223,96 @@ module.exports = async function handler(req, res) {
 
         metadata: {
           store: "Vault Collective",
-          catalogue: "supabase"
+          catalogue: "supabase",
+          reservation_id: reservationId
         }
-      });
+      },
+      {
+        idempotencyKey:
+          "reservation-" + reservationId
+      }
+    );
 
-    return send(res, 200, {
+    const { data: linked, error: linkError } =
+      await supabase
+        .from("stock_reservations")
+        .update({
+          stripe_session_id: session.id,
+          status: "reserved",
+          expires_at: new Date(
+            session.expires_at * 1000
+          ).toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", reservationId)
+        .eq("status", "pending")
+        .select("id")
+        .single();
+
+    if (linkError || !linked) {
+      throw new Error("Reservation linking failed");
+    }
+
+    return res.status(200).json({
       url: session.url
     });
 
   } catch (error) {
+    console.error("Checkout error:", error.message);
 
-    console.error(
-      "Checkout error:",
-      error.message
-    );
+    let safeToRelease = !creationAttempted;
 
-    return send(res, 500, {
-      error:
-        "Checkout could not be started. Please try again."
+    if (session && stripe) {
+      try {
+        const current =
+          await stripe.checkout.sessions.retrieve(
+            session.id
+          );
+
+        if (current.status === "open") {
+          const expired =
+            await stripe.checkout.sessions.expire(
+              session.id
+            );
+
+          safeToRelease =
+            expired.status === "expired" &&
+            expired.payment_status !== "paid";
+
+        } else {
+          safeToRelease =
+            current.status === "expired" &&
+            current.payment_status !== "paid";
+        }
+
+      } catch (expireError) {
+        console.error(
+          "Session cleanup failed:",
+          expireError.message
+        );
+      }
+    }
+
+    if (
+      reservationId &&
+      supabase &&
+      safeToRelease
+    ) {
+      const { error: releaseError } =
+        await supabase.rpc("release_stock", {
+          p_reservation_id: reservationId
+        });
+
+      if (releaseError) {
+        console.error(
+          "Stock release failed:",
+          releaseError.message
+        );
+      }
+    }
+
+    return res.status(500).json({
+      error: "Unable to start checkout. Please try again."
     });
   }
 };
