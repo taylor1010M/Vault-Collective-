@@ -1,0 +1,1030 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Vault Collective — Product Manager</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+:root{
+  --bg:#f5f4ef;
+  --ink:#171813;
+  --muted:#77786f;
+  --line:#deded5;
+  --white:#ffffff;
+  --accent:#d4ff4f;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:Arial,Helvetica,sans-serif;
+}
+[hidden]{display:none!important}
+header{
+  padding:24px 5%;
+  border-bottom:1px solid var(--line);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:16px;
+}
+.logo{
+  font-size:22px;
+  font-weight:900;
+  letter-spacing:-1px;
+}
+.logo span{color:var(--muted)}
+nav{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+}
+a{color:inherit;text-decoration:none}
+main{
+  max-width:1200px;
+  margin:auto;
+  padding:40px 5%;
+}
+.eyebrow{
+  color:var(--muted);
+  font-size:12px;
+  letter-spacing:1.5px;
+  text-transform:uppercase;
+}
+h1{
+  font-size:clamp(32px,6vw,52px);
+  letter-spacing:-2px;
+  margin:18px 0;
+}
+h2{letter-spacing:-1px}
+p{line-height:1.6;color:var(--muted)}
+.stats{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:12px;
+  margin:28px 0;
+}
+.stat,.panel{
+  background:var(--white);
+  border:1px solid var(--line);
+  padding:24px;
+}
+.stat small{
+  color:var(--muted);
+  text-transform:uppercase;
+  font-size:11px;
+}
+.stat strong{
+  display:block;
+  font-size:30px;
+  margin-top:12px;
+}
+.panel{margin-bottom:24px}
+label{
+  display:block;
+  font-size:13px;
+  margin:16px 0 7px;
+}
+input,select,textarea{
+  width:100%;
+  border:1px solid var(--line);
+  background:white;
+  padding:14px;
+  font:inherit;
+  font-size:16px;
+  border-radius:0;
+}
+textarea{
+  min-height:120px;
+  resize:vertical;
+}
+button{
+  background:var(--ink);
+  color:white;
+  border:1px solid var(--ink);
+  padding:14px 18px;
+  cursor:pointer;
+  font-size:11px;
+  letter-spacing:1px;
+  text-transform:uppercase;
+}
+button:disabled{
+  opacity:.5;
+  cursor:not-allowed;
+}
+.secondary{
+  background:white;
+  color:var(--ink);
+  border:1px solid var(--line);
+}
+.danger{color:#a32929}
+.actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:20px;
+}
+.fields{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:0 16px;
+}
+.check{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin:20px 0;
+}
+.check input{width:auto}
+#preview{
+  width:100%;
+  max-width:240px;
+  aspect-ratio:1;
+  object-fit:contain;
+  background:var(--bg);
+  margin-top:15px;
+}
+.products{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+  gap:16px;
+  margin-top:24px;
+}
+.product{
+  background:white;
+  border:1px solid var(--line);
+  padding:16px;
+}
+.product img{
+  width:100%;
+  aspect-ratio:1;
+  object-fit:contain;
+  background:var(--bg);
+}
+.product h3{margin-bottom:6px}
+.product p{font-size:13px}
+.badge{
+  display:inline-block;
+  padding:7px 10px;
+  background:#e8e8e2;
+  font-size:10px;
+  text-transform:uppercase;
+}
+.live{background:var(--accent)}
+.message{
+  padding:12px 0;
+  font-size:14px;
+  overflow-wrap:anywhere;
+}
+.error{color:#a32929}
+.success{color:#26753a}
+#login{
+  max-width:440px;
+  margin:40px auto;
+}
+@media(max-width:600px){
+  .stats{grid-template-columns:1fr 1fr}
+  .fields{grid-template-columns:1fr}
+  .panel{padding:20px}
+  main{padding:28px 5%}
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <a class="logo" href="/">
+    VAULT<span>COLLECTIVE.</span>
+  </a>
+  <nav>
+    <a href="/admin.html">Orders</a>
+    <a href="/">Store</a>
+    <button id="signOut" hidden>Sign out</button>
+  </nav>
+</header>
+
+<main>
+
+<section id="login" class="panel" hidden>
+  <div class="eyebrow">Private admin access</div>
+  <h1>Welcome back.</h1>
+
+  <form id="loginForm">
+    <label for="email">Email address</label>
+    <input id="email" type="email"
+      autocomplete="email" required>
+
+    <label for="password">Password</label>
+    <input id="password" type="password"
+      autocomplete="current-password" required>
+
+    <div class="actions">
+      <button type="submit">Sign in</button>
+    </div>
+  </form>
+
+  <p id="loginMessage" role="status"></p>
+
+  <a href="/reset-password.html">
+    Forgot password?
+  </a>
+</section>
+
+<p id="loading">Checking admin access...</p>
+
+<section id="dashboard" hidden>
+
+  <div class="eyebrow">
+    Vault Collective / Admin
+  </div>
+
+  <h1>Product management.</h1>
+  <p>Create and manage your store catalogue.</p>
+
+  <div class="stats">
+    <div class="stat">
+      <small>Total products</small>
+      <strong id="total">0</strong>
+    </div>
+    <div class="stat">
+      <small>Published</small>
+      <strong id="published">0</strong>
+    </div>
+    <div class="stat">
+      <small>Out of stock</small>
+      <strong id="outOfStock">0</strong>
+    </div>
+  </div>
+
+  <section class="panel" id="editor">
+
+    <h2 id="formTitle">Add a product.</h2>
+
+    <form id="productForm">
+
+      <input id="productId" type="hidden">
+
+      <label for="name">Product name</label>
+      <input id="name" maxlength="150" required>
+
+      <div class="fields">
+
+        <div>
+          <label for="sku">Product code (SKU)</label>
+          <input id="sku" maxlength="80"
+            placeholder="VC-001" required>
+        </div>
+
+        <div>
+          <label for="category">Category</label>
+          <select id="category">
+            <option>Clothing</option>
+            <option>Trainers</option>
+            <option>Technology</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="price">Price (£)</label>
+          <input id="price" type="number"
+            min="0.01" max="999999"
+            step="0.01" required>
+        </div>
+
+        <div>
+          <label for="stock">Stock quantity</label>
+          <input id="stock" type="number"
+            min="0" max="1000000"
+            step="1" value="0" required>
+        </div>
+
+      </div>
+
+      <label for="description">Description</label>
+      <textarea id="description"
+        maxlength="10000"></textarea>
+
+      <label for="image">Product photo</label>
+      <input id="image" type="file"
+        accept="image/jpeg,image/png,image/webp">
+
+      <p>JPEG, PNG or WebP. Maximum 5 MB.</p>
+
+      <img id="preview" alt="Product preview" hidden>
+
+      <div class="actions">
+        <button type="button" class="secondary"
+          id="removeImage">Remove photo</button>
+      </div>
+
+      <label class="check">
+        <input id="active" type="checkbox">
+        Publish product
+      </label>
+
+      <div class="actions">
+        <button type="submit" id="save">
+          Save product
+        </button>
+        <button type="button" class="secondary"
+          id="clear">Clear form</button>
+      </div>
+
+      <p id="message" class="message" role="status"></p>
+
+    </form>
+  </section>
+
+  <section class="panel">
+    <h2>Your products.</h2>
+
+    <input id="search" type="search"
+      placeholder="Search products...">
+
+    <label for="filter">Filter by category</label>
+
+    <select id="filter">
+      <option value="">All categories</option>
+      <option>Clothing</option>
+      <option>Trainers</option>
+      <option>Technology</option>
+    </select>
+
+    <div class="actions">
+      <button id="refresh">Refresh products</button>
+    </div>
+
+    <p id="listMessage" role="status"></p>
+
+    <div id="products" class="products"></div>
+
+  </section>
+
+</section>
+
+</main>
+
+<script>
+"use strict";
+
+const db = window.supabase.createClient(
+  "https://btjlvqywiphjynbfeurl.supabase.co",
+  "sb_publishable_ywJizFeRjLteUpiwRVdMkw_zza6OQQn"
+);
+
+const ADMIN_UID =
+  "75a7f9c1-c2d4-403b-981d-3c707e09de38";
+
+const BUCKET = "product-images";
+const $ = id => document.getElementById(id);
+
+let products = [];
+let currentImage = null;
+let previewURL = null;
+let busy = false;
+
+const money = pence =>
+  new Intl.NumberFormat("en-GB",{
+    style:"currency",
+    currency:"GBP"
+  }).format(pence / 100);
+
+function message(text,error=false){
+  $("message").textContent = text;
+  $("message").className =
+    "message " + (error ? "error" : "success");
+}
+
+async function requireAdmin(){
+
+  const {data,error} = await db.auth.getUser();
+
+  if(error || !data.user ||
+     data.user.id !== ADMIN_UID){
+
+    throw new Error("Admin access required.");
+  }
+
+  return data.user;
+}
+
+function showLogin(){
+
+  $("loading").hidden = true;
+  $("dashboard").hidden = true;
+  $("signOut").hidden = true;
+  $("login").hidden = false;
+
+  products = [];
+  $("products").replaceChildren();
+  clearForm();
+}
+
+async function initialise(){
+
+  try{
+
+    await requireAdmin();
+
+    $("loading").hidden = true;
+    $("login").hidden = true;
+    $("dashboard").hidden = false;
+    $("signOut").hidden = false;
+
+    await loadProducts();
+
+  }catch(error){
+    showLogin();
+  }
+}
+
+$("loginForm").addEventListener(
+  "submit",async event => {
+
+    event.preventDefault();
+
+    const button =
+      event.currentTarget.querySelector("button");
+
+    button.disabled = true;
+
+    $("loginMessage").textContent =
+      "Signing in...";
+
+    try{
+
+      const {data,error} =
+        await db.auth.signInWithPassword({
+          email:$("email").value.trim(),
+          password:$("password").value
+        });
+
+      if(error) throw error;
+
+      if(data.user.id !== ADMIN_UID){
+
+        await db.auth.signOut();
+
+        throw new Error("Access denied.");
+      }
+
+      $("password").value = "";
+      $("loginMessage").textContent = "";
+
+      await initialise();
+
+    }catch(error){
+
+      $("loginMessage").textContent =
+        error.message;
+
+    }finally{
+      button.disabled = false;
+    }
+  }
+);
+
+$("signOut").addEventListener("click",async ()=>{
+
+  const {error} = await db.auth.signOut();
+
+  if(error){
+    alert(error.message);
+    return;
+  }
+
+  showLogin();
+});
+
+db.auth.onAuthStateChange(event => {
+  if(event === "SIGNED_OUT"){
+    showLogin();
+  }
+});
+
+async function loadProducts(){
+
+  $("listMessage").textContent =
+    "Loading products...";
+
+  try{
+
+    await requireAdmin();
+
+    const all = [];
+    const pageSize = 100;
+    let offset = 0;
+
+    while(true){
+
+      const {data,error} = await db
+        .from("products")
+        .select("*")
+        .order("created_at",{ascending:false})
+        .order("id",{ascending:false})
+        .range(offset,offset+pageSize-1);
+
+      if(error) throw error;
+
+      all.push(...data);
+
+      if(data.length < pageSize) break;
+
+      offset += pageSize;
+    }
+
+    products = all;
+
+    $("total").textContent = products.length;
+
+    $("published").textContent =
+      products.filter(p=>p.active).length;
+
+    $("outOfStock").textContent =
+      products.filter(p=>p.stock_quantity===0).length;
+
+    renderProducts();
+
+  }catch(error){
+
+    $("listMessage").textContent =
+      error.message;
+  }
+}
+
+function element(tag,text,className){
+
+  const node = document.createElement(tag);
+
+  if(text !== undefined){
+    node.textContent = text;
+  }
+
+  if(className){
+    node.className = className;
+  }
+
+  return node;
+}
+
+function safeImage(url){
+
+  if(!url) return false;
+
+  try{
+    const parsed = new URL(url);
+
+    return parsed.origin ===
+      "https://btjlvqywiphjynbfeurl.supabase.co"
+      && parsed.pathname.startsWith(
+        "/storage/v1/object/public/product-images/"
+      );
+
+  }catch{
+    return false;
+  }
+}
+
+function renderProducts(){
+
+  const query =
+    $("search").value.trim().toLowerCase();
+
+  const category = $("filter").value;
+
+  const filtered = products.filter(p=>{
+
+    const matches =
+      (p.name+" "+p.sku)
+        .toLowerCase().includes(query);
+
+    return matches &&
+      (!category || p.category===category);
+  });
+
+  const container = $("products");
+
+  container.replaceChildren();
+
+  $("listMessage").textContent =
+    filtered.length
+      ? filtered.length+" products found."
+      : "No products found.";
+
+  filtered.forEach(p=>{
+
+    const card = element("article",undefined,"product");
+
+    if(safeImage(p.image_url)){
+
+      const img = element("img");
+
+      img.src = p.image_url;
+      img.alt = p.name;
+      img.loading = "lazy";
+
+      card.append(img);
+    }
+
+    card.append(
+      element("h3",p.name),
+      element("p",p.category+" · "+p.sku),
+      element("strong",money(p.price_pence)),
+      element("p","Stock: "+p.stock_quantity),
+      element(
+        "span",
+        p.active ? "Published" : "Draft",
+        p.active ? "badge live" : "badge"
+      )
+    );
+
+    const actions =
+      element("div",undefined,"actions");
+
+    const edit = element("button","Edit");
+
+    edit.onclick = ()=>editProduct(p);
+
+    const toggle = element(
+      "button",
+      p.active ? "Unpublish" : "Publish",
+      "secondary"
+    );
+
+    toggle.onclick = ()=>toggleProduct(p);
+
+    const remove = element(
+      "button","Delete","secondary danger"
+    );
+
+    remove.onclick = ()=>deleteProduct(p);
+
+    actions.append(edit,toggle,remove);
+    card.append(actions);
+    container.append(card);
+  });
+}
+
+function updatePreview(url){
+
+  if(previewURL){
+    URL.revokeObjectURL(previewURL);
+    previewURL = null;
+  }
+
+  $("preview").removeAttribute("src");
+  $("preview").hidden = true;
+
+  if(url && safeImage(url)){
+    $("preview").src = url;
+    $("preview").hidden = false;
+  }
+}
+
+function clearForm(){
+
+  $("productForm").reset();
+  $("productId").value = "";
+  $("stock").value = "0";
+
+  currentImage = null;
+
+  $("formTitle").textContent =
+    "Add a product.";
+
+  updatePreview(null);
+  message("");
+}
+
+function editProduct(p){
+
+  if(busy) return;
+
+  clearForm();
+
+  $("productId").value = p.id;
+  $("name").value = p.name;
+  $("sku").value = p.sku;
+  $("category").value = p.category;
+  $("price").value =
+    (p.price_pence/100).toFixed(2);
+
+  $("stock").value = p.stock_quantity;
+  $("description").value = p.description || "";
+  $("active").checked = p.active;
+
+  currentImage = p.image_url;
+
+  updatePreview(currentImage);
+
+  $("formTitle").textContent =
+    "Edit product.";
+
+  $("editor").scrollIntoView({
+    behavior:"smooth"
+  });
+}
+
+function validateImage(file){
+
+  const types = [
+    "image/jpeg",
+    "image/png",
+    "image/webp"
+  ];
+
+  if(!types.includes(file.type)){
+    throw new Error(
+      "Please select a JPEG, PNG or WebP image."
+    );
+  }
+
+  if(file.size > 5242880){
+    throw new Error(
+      "Image must be smaller than 5 MB."
+    );
+  }
+}
+
+$("image").addEventListener("change",()=>{
+
+  const file = $("image").files[0];
+
+  updatePreview(currentImage);
+
+  if(!file) return;
+
+  try{
+
+    validateImage(file);
+
+    previewURL = URL.createObjectURL(file);
+
+    $("preview").src = previewURL;
+    $("preview").hidden = false;
+
+    message("");
+
+  }catch(error){
+
+    $("image").value = "";
+    message(error.message,true);
+  }
+});
+
+$("removeImage").onclick = ()=>{
+
+  if(busy) return;
+
+  currentImage = null;
+  $("image").value = "";
+  updatePreview(null);
+};
+
+async function uploadImage(file){
+
+  validateImage(file);
+
+  const extensions = {
+    "image/jpeg":"jpg",
+    "image/png":"png",
+    "image/webp":"webp"
+  };
+
+  const path =
+    crypto.randomUUID()+"."+extensions[file.type];
+
+  const {error} = await db.storage
+    .from(BUCKET)
+    .upload(path,file,{
+      contentType:file.type,
+      cacheControl:"3600",
+      upsert:false
+    });
+
+  if(error) throw error;
+
+  const {data} = db.storage
+    .from(BUCKET)
+    .getPublicUrl(path);
+
+  return {
+    path,
+    url:data.publicUrl
+  };
+}
+
+$("productForm").addEventListener(
+  "submit",async event => {
+
+    event.preventDefault();
+
+    if(busy) return;
+
+    busy = true;
+
+    $("save").disabled = true;
+    $("clear").disabled = true;
+    $("removeImage").disabled = true;
+
+    const fields = Array.from(
+      event.currentTarget.querySelectorAll(
+        "input,select,textarea"
+      )
+    );
+
+    fields.forEach(field=>field.disabled=true);
+
+    let uploaded = null;
+    let saveAttempted = false;
+
+    try{
+
+      await requireAdmin();
+
+      const id = $("productId").value;
+
+      const name = $("name").value.trim();
+
+      const sku = $("sku").value.trim();
+
+      const price = Math.round(
+        Number($("price").value)*100
+      );
+
+      const stock = Number($("stock").value);
+
+      if(!name || !sku){
+        throw new Error(
+          "Product name and SKU are required."
+        );
+      }
+
+      if(!Number.isInteger(price) || price<1){
+        throw new Error("Enter a valid price.");
+      }
+
+      if(!Number.isInteger(stock) || stock<0){
+        throw new Error("Enter a valid stock quantity.");
+      }
+
+      const file = $("image").files[0];
+
+      let imageUrl = currentImage;
+
+      if(file){
+
+        message("Uploading image...");
+
+        uploaded = await uploadImage(file);
+
+        imageUrl = uploaded.url;
+      }
+
+      const payload = {
+        name,
+        sku,
+        category:$("category").value,
+        description:$("description").value.trim(),
+        price_pence:price,
+        stock_quantity:stock,
+        image_url:imageUrl,
+        active:$("active").checked
+      };
+
+      message("Saving product...");
+
+      saveAttempted = true;
+
+      const query = id
+        ? db.from("products").update(payload).eq("id",id)
+        : db.from("products").insert(payload);
+
+      const {error} = await query
+        .select("id")
+        .single();
+
+      if(error) throw error;
+
+      clearForm();
+
+      message("Product saved successfully.");
+
+      await loadProducts();
+
+    }catch(error){
+
+      if(uploaded && !saveAttempted){
+        await db.storage
+          .from(BUCKET)
+          .remove([uploaded.path]);
+      }
+
+      message(error.message,true);
+
+    }finally{
+
+      busy = false;
+
+      fields.forEach(field=>field.disabled=false);
+
+      $("save").disabled = false;
+      $("clear").disabled = false;
+      $("removeImage").disabled = false;
+    }
+  }
+);
+
+async function toggleProduct(p){
+
+  if(busy) return;
+
+  busy = true;
+
+  try{
+
+    await requireAdmin();
+
+    const {error} = await db
+      .from("products")
+      .update({active:!p.active})
+      .eq("id",p.id)
+      .select("id")
+      .single();
+
+    if(error) throw error;
+
+    await loadProducts();
+
+  }catch(error){
+
+    alert(error.message);
+
+  }finally{
+    busy = false;
+  }
+}
+
+async function deleteProduct(p){
+
+  if(busy) return;
+
+  if(!confirm(
+    "Permanently delete "+p.name+"?"
+  )) return;
+
+  busy = true;
+
+  try{
+
+    await requireAdmin();
+
+    const {error} = await db
+      .from("products")
+      .delete()
+      .eq("id",p.id)
+      .select("id")
+      .single();
+
+    if(error) throw error;
+
+    if($("productId").value===p.id){
+      clearForm();
+    }
+
+    await loadProducts();
+
+  }catch(error){
+
+    alert(error.message);
+
+  }finally{
+    busy = false;
+  }
+}
+
+$("clear").onclick = ()=>{
+  if(!busy) clearForm();
+};
+
+$("refresh").onclick = ()=>{
+  if(!busy) loadProducts();
+};
+
+$("search").oninput = renderProducts;
+$("filter").onchange = renderProducts;
+
+initialise();
+</script>
+
+</body>
+</html>
