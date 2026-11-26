@@ -5,6 +5,7 @@ const { createClient } = require("@supabase/supabase-js");
 function readRawBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
+
     req.on("data", chunk => chunks.push(chunk));
     req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
@@ -19,6 +20,9 @@ module.exports = async function handler(req, res) {
       error: "Method not allowed"
     });
   }
+
+  let claimedEventId = null;
+  let supabase = null;
 
   try {
     const {
@@ -39,7 +43,7 @@ module.exports = async function handler(req, res) {
 
     const stripe = new Stripe(STRIPE_SECRET_KEY);
 
-    const supabase = createClient(
+    supabase = createClient(
       SUPABASE_URL,
       SUPABASE_SECRET_KEY,
       {
@@ -74,20 +78,30 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    const { data: previousEvent, error: checkError } =
-      await supabase
-        .from("stripe_events")
-        .select("event_id")
-        .eq("event_id", event.id)
-        .maybeSingle();
+    // Atomically claim this event before processing it.
+    const { data: claimResult, error: claimError } =
+      await supabase.rpc("claim_stripe_event", {
+        p_event_id: event.id,
+        p_event_type: event.type
+      });
 
-    if (checkError) throw checkError;
+    if (claimError) throw claimError;
 
-    if (previousEvent) {
+    if (claimResult === "processed") {
       return res.status(200).json({
-        received: true
+        received: true,
+        duplicate: true
       });
     }
+
+    if (claimResult !== "claimed") {
+      // Ask Stripe to retry if another request is processing it.
+      return res.status(500).json({
+        error: "Event is currently being processed"
+      });
+    }
+
+    claimedEventId = event.id;
 
     const session = event.data.object;
 
@@ -104,6 +118,7 @@ module.exports = async function handler(req, res) {
       "checkout.session.async_payment_succeeded"
     ];
 
+    // Release stock when a checkout expires or payment fails.
     if (
       releaseEvents.includes(event.type) &&
       reservationId
@@ -134,6 +149,7 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    // Save paid orders and complete their stock reservations.
     if (
       paymentEvents.includes(event.type) &&
       session.payment_status === "paid"
@@ -275,21 +291,19 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    const { error: saveError } =
-      await supabase
-        .from("stripe_events")
-        .upsert(
-          {
-            event_id: event.id,
-            event_type: event.type
-          },
-          {
-            onConflict: "event_id",
-            ignoreDuplicates: true
-          }
-        );
+    // Only mark the event processed after all work succeeds.
+    const { data: finished, error: finishError } =
+      await supabase.rpc("finish_stripe_event", {
+        p_event_id: event.id
+      });
 
-    if (saveError) throw saveError;
+    if (finishError) throw finishError;
+
+    if (finished !== true) {
+      throw new Error("Could not mark Stripe event as processed");
+    }
+
+    claimedEventId = null;
 
     return res.status(200).json({
       received: true
@@ -297,6 +311,22 @@ module.exports = async function handler(req, res) {
 
   } catch (error) {
     console.error("Order webhook error:", error.message);
+
+    // Mark failed so Stripe can safely retry the event.
+    if (claimedEventId && supabase) {
+      const { error: failError } =
+        await supabase.rpc("fail_stripe_event", {
+          p_event_id: claimedEventId,
+          p_error: error.message || "Unknown processing error"
+        });
+
+      if (failError) {
+        console.error(
+          "Could not release event claim:",
+          failError.message
+        );
+      }
+    }
 
     return res.status(500).json({
       error: "Webhook could not be processed"
